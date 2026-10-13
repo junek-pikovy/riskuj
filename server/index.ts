@@ -30,7 +30,12 @@ interface AudioUploadRequest extends express.Request {
 
 const defaultUploadsDir = resolve(process.cwd(), "data", "uploads");
 const defaultAudioAssetsPath = resolve(process.cwd(), "data", "audio-assets.json");
-const defaultStaticDir = resolve(process.cwd(), "dist");
+const defaultStaticDir = (() => {
+  // Novější vite build (Sites plugin) skládá klienta do dist/client;
+  // starší layout měl index.html přímo v dist.
+  const clientDir = resolve(process.cwd(), "dist", "client");
+  return existsSync(resolve(clientDir, "index.html")) ? clientDir : resolve(process.cwd(), "dist");
+})();
 const audioUploadRequiredMessage = 'Audio file is required in multipart field "file".';
 
 const asyncHandler =
