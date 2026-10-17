@@ -121,8 +121,8 @@ export function ListeningItemEditor({
       <label className="field-stack">
         <span>Odpověď poslechové položky</span>
         <input
-          value={item.answer}
-          onChange={(event) => onChange({ ...item, answer: event.target.value })}
+          value={item.answer ?? ""}
+          onChange={(event) => onChange({ ...item, answer: event.target.value, generatedAnswer: undefined })}
         />
       </label>
       <AudioUploadField

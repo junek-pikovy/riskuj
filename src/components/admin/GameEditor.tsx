@@ -176,6 +176,7 @@ export function prepareGameForSave(game: EditableGame): Game {
       ? game.rounds.map((round) => round.type)
       : ["question", "listening", "common-denominator"];
   const rounds = [];
+  const listeningItems = normalizeListeningItems(game);
 
   if (roundTypes.includes("question")) {
     rounds.push({
@@ -189,8 +190,6 @@ export function prepareGameForSave(game: EditableGame): Game {
   }
 
   if (roundTypes.includes("listening")) {
-    const listeningItems = normalizeListeningItems(game);
-
     rounds.push({
       id: listeningRound?.id ?? "round-poslech",
       type: "listening" as const,
@@ -234,7 +233,7 @@ export function prepareGameForSave(game: EditableGame): Game {
     createdAt: game.createdAt ?? now,
     updatedAt: game.updatedAt ?? now,
     rounds,
-    listeningItems: normalizeListeningItems(game)
+    listeningItems
   };
 }
 
@@ -985,12 +984,15 @@ export { GameEditor };
 function normalizeListeningItems(game: EditableGame): ListeningItem[] {
   return game.listeningItems.map((item) => {
     const artist = item.artist ?? item.artistAnswer ?? "";
-    const trackTitle = item.title ?? item.trackTitle ?? item.trackTitleAnswer ?? item.answer;
+    const trackTitle = item.title ?? item.trackTitle ?? item.trackTitleAnswer ?? item.answer ?? "";
     const genreId = item.genreId ?? item.categoryId ?? game.listeningGenres[0]?.id ?? "";
-    const previousAnswer = [item.artistAnswer, item.trackTitleAnswer].filter(Boolean).join(" - ");
-    const answer = !item.answer.trim() || item.answer === previousAnswer
+    const currentAnswer = item.answer ?? "";
+    const isGenerated = !currentAnswer.trim() || (
+      item.generatedAnswer !== undefined && currentAnswer === item.generatedAnswer
+    );
+    const answer = isGenerated
       ? [artist, trackTitle].filter(Boolean).join(" - ")
-      : item.answer;
+      : currentAnswer;
 
     return {
       ...item,
@@ -1000,8 +1002,9 @@ function normalizeListeningItems(game: EditableGame): ListeningItem[] {
       title: trackTitle,
       trackTitle,
       points: item.points ?? 100,
-      prompt: item.prompt.trim() || "Poznej interpreta a název skladby.",
+      prompt: (item.prompt ?? "").trim() || "Poznej interpreta a název skladby.",
       answer,
+      generatedAnswer: isGenerated ? answer : undefined,
       trackTitleAnswer: trackTitle,
       artistAnswer: artist,
       audioUrl: item.audio?.src ?? item.audioUrl,

@@ -128,7 +128,9 @@ export function AdminPage({ runningGameId = "", onStartGame, onResumeGame }: Adm
   }
 
   function handleDuplicateGame() {
-    if (!game) {
+    if (!game || !window.confirm(
+      "Duplikovat uloženou verzi hry? Neuložené úpravy se do kopie nepřenesou. Chcete-li je zachovat, zrušte duplikaci a nejdřív uložte hru."
+    )) {
       return;
     }
 

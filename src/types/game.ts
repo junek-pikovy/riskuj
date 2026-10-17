@@ -86,6 +86,8 @@ export interface ListeningItem {
   audio?: AudioAsset;
   /** Existing admin/presenter compatibility fields. */
   answer: string;
+  /** Last auto-generated answer; absent for explicitly edited answers. */
+  generatedAnswer?: string;
   categoryId?: string;
   points?: QuestionPoints;
   value?: Exclude<MoneyValue, 0>;

@@ -50,8 +50,12 @@ describe("editor → API persistence → presenter", () => {
     directory = await mkdtemp(join(tmpdir(), "riskuj-regression-"));
     const app = createServer({ gamesDirectory: join(directory, "games"), uploadsDir: join(directory, "uploads"), audioAssetsPath: join(directory, "audio.json") });
     vi.stubGlobal("fetch", vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
-      const response = init?.method === "PUT"
-        ? await request(app).put(String(url)).send(JSON.parse(String(init.body)))
+      const method = init?.method ?? "GET";
+      if (method !== "GET" && method !== "PUT") {
+        throw new Error(`Unsupported test fetch method: ${method}`);
+      }
+      const response = method === "PUT"
+        ? await request(app).put(String(url)).send(JSON.parse(String(init?.body)))
         : await request(app).get(String(url));
       return Response.json(response.body, { status: response.status });
     }));
@@ -191,6 +195,13 @@ describe("editor → API persistence → presenter", () => {
     const original = await gamesClient.saveGame(fixture());
     render(<AdminPage />);
     await waitFor(() => expect(screen.getByLabelText("Název hry")).toHaveValue(original.title));
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    edit("Název hry", "Unsaved title");
+    fireEvent.click(screen.getByRole("button", { name: "Duplikovat hru" }));
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining("Neuložené úpravy"));
+    expect(screen.getByLabelText("Název hry")).toHaveValue("Unsaved title");
+    expect(screen.getByLabelText("Načíst existující hru")).toHaveValue(original.id);
+    confirm.mockReturnValue(true);
     fireEvent.click(screen.getByRole("button", { name: "Duplikovat hru" }));
     expect(screen.getByLabelText("Název hry")).toHaveValue(`${original.title} – kopie`);
     expect(screen.getByRole("button", { name: "Spustit novou hru" })).toBeDisabled();
@@ -221,6 +232,54 @@ describe("editor → API persistence → presenter", () => {
     expect(saved.listeningItems?.[0].answer).toBe("Artist B - Track B");
     await showListeningAnswer(saved, "pop");
     expect(screen.queryByText("Artist A - Track A")).not.toBeInTheDocument();
+  });
+
+  it("preserves a custom answer matching the old generated artist/title text", () => {
+    const editable = normalizeGame(fixture());
+    editable.listeningItems[0].answer = "Artist A - Track A";
+    editable.listeningItems[0].artist = "Artist B";
+    editable.listeningItems[0].title = "Track B";
+    const saved = prepareGameForSave(editable);
+    expect(saved.listeningItems?.[0].answer).toBe("Artist A - Track A");
+  });
+
+  it("keeps an explicitly edited generated answer custom even when the text matches", async () => {
+    const editable = normalizeGame(fixture());
+    editable.listeningItems[0].answer = "";
+    const original = await gamesClient.saveGame(prepareGameForSave(editable));
+    const onSave = vi.fn(async (game: Game) => { await gamesClient.saveGame(game); });
+    const view = render(<GameEditor initialGame={original} onSave={onSave} />);
+    openListeningEditor();
+    edit("Odpověď poslechové položky", "Temporary custom text");
+    edit("Odpověď poslechové položky", "Artist A - Track A");
+    edit("Interpret", "Artist B");
+    edit("Název skladby", "Track B");
+    fireEvent.click(screen.getByRole("button", { name: "Uložit hru" }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
+    await onSave.mock.results[0].value;
+    view.unmount();
+    const loaded = await gamesClient.loadGame(original.id);
+    expect(loaded.listeningItems?.[0].answer).toBe("Artist A - Track A");
+    expect(loaded.listeningItems?.[0].generatedAnswer).toBeUndefined();
+  });
+
+  it("defaults missing legacy answer and prompt safely and shares normalized item aliases", () => {
+    const editable = normalizeGame(fixture());
+    // Simulate incomplete legacy data arriving outside the strict JSON importer.
+    Reflect.deleteProperty(editable.listeningItems[0], "answer");
+    Reflect.deleteProperty(editable.listeningItems[0], "prompt");
+    const saved = prepareGameForSave(editable);
+    const listening = saved.rounds.find((round) => round.type === "listening")!;
+    expect(saved.listeningItems?.[0]).toMatchObject({ answer: "Artist A - Track A", prompt: "Poznej interpreta a název skladby." });
+    expect(saved.listeningItems).toBe(listening.items);
+    expect(listening.tracks).toBe(listening.items);
+    expect(listening.genres).toBe(listening.categories);
+    editable.listeningItems[0].answer = "  Custom answer  ";
+    expect(prepareGameForSave(editable).listeningItems?.[0].answer).toBe("  Custom answer  ");
+  });
+
+  it("rejects unsupported fetch methods instead of silently treating them as GET", async () => {
+    await expect(fetch("/api/games", { method: "POST" })).rejects.toThrow("Unsupported test fetch method: POST");
   });
 
   it("exports, edits, imports into a new ID and persists all three rounds", async () => {
