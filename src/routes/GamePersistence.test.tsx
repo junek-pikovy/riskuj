@@ -10,6 +10,7 @@ import { gamesClient } from "../api/gamesClient";
 import { parseGameJson, serializeGameToJson } from "../importExport/gameJson";
 import type { Game } from "../types/game";
 import PlayPage from "./PlayPage";
+import AdminPage from "./AdminPage";
 
 function fixture(): Game {
   return prepareGameForSave(normalizeGame({
@@ -184,6 +185,29 @@ describe("editor → API persistence → presenter", () => {
     expect(loaded.listeningItems).toEqual(savedRound.items);
     await showListeningAnswer(loaded, "Genre B");
     expect(screen.getByText("Název: Track A")).toBeInTheDocument();
+  });
+
+  it("duplicates a saved game under a new ID without overwriting its content", async () => {
+    const original = await gamesClient.saveGame(fixture());
+    render(<AdminPage />);
+    await waitFor(() => expect(screen.getByLabelText("Název hry")).toHaveValue(original.title));
+    fireEvent.click(screen.getByRole("button", { name: "Duplikovat hru" }));
+    expect(screen.getByLabelText("Název hry")).toHaveValue(`${original.title} – kopie`);
+    expect(screen.getByRole("button", { name: "Spustit novou hru" })).toBeDisabled();
+    expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === "PUT")).toHaveLength(1);
+    edit("Název hry", "Independent copy");
+    fireEvent.click(screen.getByRole("tab", { name: "1. kolo" }));
+    edit("Zadání otázky 1000 bodů v kategorii Category A", "Copy question");
+    fireEvent.click(screen.getByRole("button", { name: "Uložit hru" }));
+    await screen.findByText("Hra byla uložená.");
+    const id = (screen.getByLabelText("Načíst existující hru") as HTMLSelectElement).value;
+    expect(id).not.toBe(original.id);
+    const copy = await gamesClient.loadGame(id);
+    expect(copy.title).toBe("Independent copy");
+    expect(copy.teams).toEqual(original.teams);
+    expect(copy.rounds.slice(1)).toEqual(original.rounds.slice(1));
+    expect(copy.rounds[0]).toMatchObject({ questions: [expect.objectContaining({ prompt: "Copy question" })] });
+    expect(await gamesClient.loadGame(original.id)).toEqual(original);
   });
 
   it("refreshes generated answers when only artist and title change on the next save", async () => {

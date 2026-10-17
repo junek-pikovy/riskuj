@@ -296,5 +296,6 @@ describe("AdminPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Nová hra" }));
 
     expect(screen.getByRole("button", { name: "Spustit novou hru" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Duplikovat hru" })).toBeDisabled();
   });
 });

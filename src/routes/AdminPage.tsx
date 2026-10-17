@@ -127,6 +127,26 @@ export function AdminPage({ runningGameId = "", onStartGame, onResumeGame }: Adm
     setGame(createEmptyGame());
   }
 
+  function handleDuplicateGame() {
+    if (!game) {
+      return;
+    }
+
+    const now = new Date().toISOString();
+    loadRequestId.current += 1;
+    setSelectedGameId("");
+    setIsLoading(false);
+    setError(null);
+    setStatus("Kopie hry je připravená. Upravte název a uložte ji jako novou hru.");
+    setGame({
+      ...structuredClone(game),
+      id: createEmptyGame().id,
+      title: `${game.title} – kopie`,
+      createdAt: now,
+      updatedAt: now
+    });
+  }
+
   async function handleUploadAudio(file: File) {
     const asset = await gamesClient.uploadAudio(file);
     setAudioAssets((currentAssets) => [...currentAssets, asset]);
@@ -213,6 +233,13 @@ export function AdminPage({ runningGameId = "", onStartGame, onResumeGame }: Adm
         </label>
         <button type="button" onClick={handleCreateNewGame}>
           Nová hra
+        </button>
+        <button
+          type="button"
+          disabled={!selectedGameId || !game || isLoading || isSaving}
+          onClick={handleDuplicateGame}
+        >
+          Duplikovat hru
         </button>
         {runningGameId ? (
           <button
