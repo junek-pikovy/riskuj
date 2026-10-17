@@ -86,8 +86,8 @@ export function ListeningItemEditor({
         <label className="field-stack">
           <span>Žánr poslechové položky</span>
           <select
-            value={item.genreId}
-            onChange={(event) => onChange({ ...item, genreId: event.target.value })}
+            value={item.genreId ?? item.categoryId}
+            onChange={(event) => onChange({ ...item, genreId: event.target.value, categoryId: event.target.value })}
           >
             {genres.map((genre) => (
               <option key={genre.id} value={genre.id}>

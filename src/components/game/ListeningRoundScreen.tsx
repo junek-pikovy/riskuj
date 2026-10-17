@@ -23,6 +23,9 @@ export function ListeningRoundScreen({ item, answerVisible }: ListeningRoundScre
           <h3>Odpověď</h3>
           <p>Interpret: {artist}</p>
           <p>Název: {trackTitle}</p>
+          {item.answer && item.answer !== [artist, trackTitle].filter(Boolean).join(" - ") ? (
+            <p>{item.answer}</p>
+          ) : null}
         </div>
       ) : null}
     </>

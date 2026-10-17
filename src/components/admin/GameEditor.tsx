@@ -123,7 +123,12 @@ export function normalizeGame(game: Game): EditableGame {
     categories,
     questions,
     listeningGenres,
-    listeningItems,
+    listeningItems: listeningItems.map((item) => ({
+      ...item,
+      genreId: item.genreId ?? item.categoryId,
+      title: item.title ?? item.trackTitle ?? item.trackTitleAnswer ?? "",
+      artist: item.artist ?? item.artistAnswer ?? ""
+    })),
     commonDenominator: game.commonDenominator ?? { answer: "", clues: [] },
     commonDenominatorItems,
     soundEffects: normalizeSoundEffects(game.soundEffects)
@@ -190,6 +195,7 @@ export function prepareGameForSave(game: EditableGame): Game {
       id: listeningRound?.id ?? "round-poslech",
       type: "listening" as const,
       title: listeningRound?.title ?? "Poslechové kolo",
+      genres: game.listeningGenres,
       categories: game.listeningGenres,
       tracks: listeningItems,
       items: listeningItems
@@ -227,7 +233,8 @@ export function prepareGameForSave(game: EditableGame): Game {
     ...game,
     createdAt: game.createdAt ?? now,
     updatedAt: game.updatedAt ?? now,
-    rounds
+    rounds,
+    listeningItems: normalizeListeningItems(game)
   };
 }
 
@@ -818,7 +825,7 @@ export default function GameEditor({
                 setGame((current) => ({
                   ...current,
                   listeningGenres: current.listeningGenres.filter((genre) => genre.id !== genreId),
-                  listeningItems: current.listeningItems.filter((item) => item.genreId !== genreId)
+                  listeningItems: current.listeningItems.filter((item) => (item.genreId ?? item.categoryId) !== genreId)
                 }))
               }
             />
@@ -977,14 +984,21 @@ export { GameEditor };
 
 function normalizeListeningItems(game: EditableGame): ListeningItem[] {
   return game.listeningItems.map((item) => {
-    const artist = item.artistAnswer ?? item.artist ?? "";
-    const trackTitle = item.trackTitleAnswer ?? item.title ?? item.trackTitle ?? item.answer;
-    const answer = item.answer.trim() || [artist, trackTitle].filter(Boolean).join(" - ");
+    const artist = item.artist ?? item.artistAnswer ?? "";
+    const trackTitle = item.title ?? item.trackTitle ?? item.trackTitleAnswer ?? item.answer;
+    const genreId = item.genreId ?? item.categoryId ?? game.listeningGenres[0]?.id ?? "";
+    const previousAnswer = [item.artistAnswer, item.trackTitleAnswer].filter(Boolean).join(" - ");
+    const answer = !item.answer.trim() || item.answer === previousAnswer
+      ? [artist, trackTitle].filter(Boolean).join(" - ")
+      : item.answer;
 
     return {
       ...item,
-      categoryId: item.categoryId ?? item.genreId ?? game.listeningGenres[0]?.id ?? "",
-      genreId: item.genreId ?? item.categoryId,
+      categoryId: genreId,
+      genreId,
+      artist,
+      title: trackTitle,
+      trackTitle,
       points: item.points ?? 100,
       prompt: item.prompt.trim() || "Poznej interpreta a název skladby.",
       answer,
